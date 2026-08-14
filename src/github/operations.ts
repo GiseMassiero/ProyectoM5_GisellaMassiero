@@ -20,14 +20,7 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * GitHub devuelve dos "sabores" de rate limit:
- *  - 429 Too Many Requests: siempre es rate limit.
- *  - 403 Forbidden CON el header `x-ratelimit-remaining: "0"`: es el
- *    llamado "secondary rate limit". Un 403 SIN ese header es un
- *    permiso real (token sin el scope necesario) y ahí no hay que
- *    reintentar, porque reintentar no lo va a arreglar.
- */
+
 function isRateLimited(error: unknown): boolean {
   if (!(error instanceof RequestError)) return false;
   if (error.status === 429) return true;
@@ -41,12 +34,6 @@ function isTransientServerError(status: number | undefined): boolean {
   return status === 502 || status === 503 || status === 504;
 }
 
-/**
- * Cuánto esperar antes de reintentar. Si GitHub nos dice explícitamente
- * cuándo se libera la cuota (`x-ratelimit-reset` o `retry-after`),
- * respetamos ese valor en vez de adivinar con backoff exponencial —
- * es la diferencia entre reintentar "a ciegas" y reintentar bien.
- */
 function delayForAttempt(error: unknown, attempt: number): number {
   if (error instanceof RequestError) {
     const headers = error.response?.headers ?? {};
@@ -56,8 +43,6 @@ function delayForAttempt(error: unknown, attempt: number): number {
     const reset = headers["x-ratelimit-reset"];
     if (reset) {
       const waitMs = Number(reset) * 1000 - Date.now();
-      // GitHub puede pedir esperar varios minutos; ponemos un techo de
-      // 30s por intento para no colgar el proceso de más.
       if (waitMs > 0) return Math.min(waitMs, 30_000);
     }
   }
@@ -151,7 +136,7 @@ export async function listIssues(input: ListIssuesInput) {
 
 export async function createCommit(input: CreateCommitInput) {
   return withRetry(async () => {
-    // Rama de destino: si no se especifica, se usa la rama por default del repo.
+
     const branch =
       input.branch ??
       (
@@ -161,7 +146,7 @@ export async function createCommit(input: CreateCommitInput) {
         })
       ).data.default_branch;
 
-    // 1) Ref de la rama → apunta al último commit (el "padre" del nuevo).
+
     const { data: ref } = await octokit.rest.git.getRef({
       owner: input.owner,
       repo: input.repo,
@@ -169,8 +154,7 @@ export async function createCommit(input: CreateCommitInput) {
     });
     const parentCommitSha = ref.object.sha;
 
-    // 2) Ese commit padre apunta a un tree: la "foto" de todos los
-    //    archivos del repo en ese punto. La necesitamos como base.
+
     const { data: parentCommit } = await octokit.rest.git.getCommit({
       owner: input.owner,
       repo: input.repo,
@@ -178,8 +162,7 @@ export async function createCommit(input: CreateCommitInput) {
     });
     const baseTreeSha = parentCommit.tree.sha;
 
-    // 3) Blob: el contenido del archivo, crudo, todavía sin nombre ni
-    //    ubicación (eso lo define recién el tree, en el paso 4).
+
     const { data: blob } = await octokit.rest.git.createBlob({
       owner: input.owner,
       repo: input.repo,
@@ -187,9 +170,7 @@ export async function createCommit(input: CreateCommitInput) {
       encoding: "base64",
     });
 
-    // 4) Tree nuevo = tree base + este blob en el path indicado.
-    //    Si el path ya existía, lo reemplaza; si no, lo agrega. El resto
-    //    del árbol (todos los demás archivos) queda igual.
+
     const { data: tree } = await octokit.rest.git.createTree({
       owner: input.owner,
       repo: input.repo,
@@ -197,15 +178,14 @@ export async function createCommit(input: CreateCommitInput) {
       tree: [
         {
           path: input.path,
-          mode: "100644", // archivo normal (no ejecutable, no symlink)
+          mode: "100644",
           type: "blob",
           sha: blob.sha,
         },
       ],
     });
 
-    // 5) Commit nuevo: apunta al tree nuevo y declara como padre al
-    //    commit anterior — así queda encadenado en el historial.
+
     const { data: commit } = await octokit.rest.git.createCommit({
       owner: input.owner,
       repo: input.repo,
@@ -214,9 +194,7 @@ export async function createCommit(input: CreateCommitInput) {
       parents: [parentCommitSha],
     });
 
-    // 6) Actualizar el ref de la rama para que apunte al commit nuevo.
-    //    Sin este paso, el commit existiría "suelto" (accesible por su
-    //    sha) pero la rama seguiría mostrando el estado anterior.
+
     await octokit.rest.git.updateRef({
       owner: input.owner,
       repo: input.repo,

@@ -1,11 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { RequestError } from "@octokit/request-error";
 
-/**
- * Arma un RequestError "de verdad" (la misma clase que usa Octokit),
- * para que el código bajo test lo detecte con `instanceof RequestError`
- * tal como pasaría con un error real de la API de GitHub.
- */
+
 function makeRequestError(
   status: number,
   message: string,
@@ -17,7 +13,7 @@ function makeRequestError(
   });
 }
 
-/** Saca el texto del primer bloque de contenido de un CallToolResult. */
+
 function textOf(result: { content: Array<{ type: string; text?: string }> }): string {
   const block = result.content[0];
   if (!block || block.type !== "text" || typeof block.text !== "string") {
@@ -99,7 +95,7 @@ describe("Tools — casos edge con Octokit mockeado", () => {
   it("create_repository: reintenta ante un 403 de rate limit y termina bien", async () => {
     const rateLimitError = makeRequestError(403, "secondary rate limit", {
       "x-ratelimit-remaining": "0",
-      "retry-after": "0", // 0s para que el test no espere de verdad
+      "retry-after": "0",
     });
 
     createForAuthenticatedUser
@@ -141,7 +137,7 @@ describe("Tools — casos edge con Octokit mockeado", () => {
     const result = await runCreateIssue({
       owner: "octocat",
       repo: "demo",
-      title: "", // título vacío: lo rechaza el schema
+      title: "",
     });
 
     expect(result.isError).toBe(true);
@@ -168,8 +164,7 @@ describe("Tools — casos edge con Octokit mockeado", () => {
       message: "agrega nota",
     });
 
-    // Cada paso del pipeline se llamó exactamente una vez, encadenado
-    // con el sha del paso anterior — no se salteó ninguno.
+
     expect(getRef).toHaveBeenCalledWith(
       expect.objectContaining({ ref: "heads/main" }),
     );
