@@ -111,6 +111,8 @@ GITHUB_MAX_RETRIES=3
 - `GITHUB_MAX_RETRIES`: opcional, default `3` — cuántas veces reintenta una
   operación cuando GitHub aplica rate limiting (ver sección de Troubleshooting).
 
+---
+
 ### 4. Cómo configurar el MCP server en Antigravity
 
 1. En Antigravity, clic en el **"..."** (más opciones) arriba del panel del
@@ -213,6 +215,8 @@ alto nivel.
 | `content` | `string` | Sí | Contenido del archivo en texto plano (se codifica a base64 internamente). |
 | `branch` | `string` | No | Si se omite, usa la rama por default del repositorio. |
 
+
+
 **Prompt de ejemplo que funciona bien:**
 > "En `GiseMassiero/mcp-demo-notas`, agregá un archivo `docs/prueba.md` con el
 > contenido 'Primera prueba del MCP server' y el mensaje de commit 'docs: agrega
@@ -232,6 +236,8 @@ pull requests (que la API de GitHub devuelve mezclados con los issues).
 
 **Prompt de ejemplo que funciona bien:**
 > "Listame los issues cerrados de `GiseMassiero/mcp-demo-notas`."
+
+---
 
 ## Ejemplos de uso (las 5 tools en una sola sesión)
 
@@ -288,6 +294,8 @@ El camino que sigue cada tool, siempre igual: **schema (Zod) → handler de la
 tool → operación de GitHub (con retry) → error normalizado a lenguaje natural o
 resultado exitoso.**
 
+---
+
 ## Cómo ejecutar los tests
 
 ```bash
@@ -307,6 +315,8 @@ reales a GitHub (todos mockean `src/github/client.js`):
   flujo completo de `create_commit` (blob → tree → commit → ref, un llamado
   por paso).
 
+---
+
 ## Manejo de rate limiting
 
 GitHub devuelve dos "sabores" de estoy-limitando-tu-uso:
@@ -320,6 +330,8 @@ GitHub devuelve dos "sabores" de estoy-limitando-tu-uso:
 reintentar, respeta `retry-after` o `x-ratelimit-reset` si GitHub los manda (con
 un techo de 30s por intento), o backoff exponencial si no. Máximo
 `GITHUB_MAX_RETRIES` intentos (default 3).
+
+---
 
 ## Troubleshooting común
 
@@ -354,6 +366,8 @@ Se agregó `"build": "tsc"` a `package.json` — compila a `dist/` (ya excluido 
 `.gitignore`). No afecta a `dev`/`start`, que siguen corriendo el `.ts`
 directo con `tsx`.
 
+---
+
 ## Seguridad
 
 - El token nunca se imprime en logs.
@@ -368,24 +382,45 @@ directo con `tsx`.
 - Los errores técnicos se transforman en mensajes entendibles por el LLM, sin
   exponer detalles internos sensibles.
 
+
+---
+
 ## Estructura del proyecto
 
-```text
-src/
-  config/env.ts        # Carga y valida las variables de entorno
-  errors/index.ts       # ValidationError, GitHubAPIError, AuthenticationError, NetworkError
-  github/
-    client.ts           # Instancia única de Octokit, autenticada
-    operations.ts        # Llamadas a la API de GitHub + retry logic (rate limiting incluido)
-  schemas/index.ts      # Un schema Zod por tool
-  tools/                # Una función por tool: schema → operación → respuesta
-  utils/logging.ts       # Logging simple a stderr (nunca el token)
-  server.ts             # Registra las 5 tools en el McpServer, stdio
-tests/                  # 18 tests con Vitest
+
 ```
 
-Cada tool sigue siempre el mismo camino: **schema (Zod) → handler de la tool →
-operación de GitHub (con retry) → error normalizado o resultado exitoso.**
+src/
+  config/env.ts             # Carga y valida las variables de entorno (falla rápido si falta GITHUB_TOKEN)
+  errors/index.ts            # ValidationError, GitHubAPIError, AuthenticationError, NetworkError
+  github/
+    client.ts                # Instancia única de Octokit, autenticada
+    operations.ts             # Llamadas a la API de GitHub + retry logic (rate limiting incluido)
+  schemas/index.ts           # Un schema Zod por tool + repositoryNameSchema compartido
+  scripts/
+    verify-setup.ts           # Script CLI: confirma que el token conecta bien con GitHub
+  tools/
+    create-repository.ts      # Tool: create_repository
+    create-issue.ts           # Tool: create_issue
+    list-repositories.ts      # Tool: list_repositories
+    create-commit.ts          # Tool: create_commit (Git Data API)
+    list-issues.ts            # Tool: list_issues
+    helpers.ts                # success() / failure() — arma el CallToolResult
+  utils/logging.ts            # Logging simple a stderr (nunca el token)
+  server.ts                  # Registra las 5 tools en el McpServer, stdio
+  types.ts                   # Tipos compartidos entre módulos
+tests/
+  schemas.test.ts             # 6 tests — validación de Zod
+  errors.test.ts              # 4 tests — transformación a lenguaje natural
+  github.test.ts              # 2 tests — Octokit mockeado (camino feliz)
+  tools.test.ts               # 6 tests — casos edge de punta a punta
+
+```
+
+
+Cada tool sigue siempre el mismo camino: schema (Zod) → handler de la tool → operación de GitHub (con retry) → error normalizado o resultado exitoso.
+
+---
 
 
 ## Licencia
